@@ -1,5 +1,8 @@
 import pyglet
 import random
+import time
+
+from pyglet.sprite import Sprite
 
 LOGGING = True
 def log(msg):
@@ -26,6 +29,7 @@ KEY_MAP = {pyglet.window.key._1: 0x1,
 
 class Cpu(pyglet.window.Window):
     def __init__(self):
+        super(Cpu, self).__init__()
         self.funcmap = {0x0000: self._0ZZZ,
                         0x00e0: self._0ZZ0,
                         0x00ee: self._0ZZE,
@@ -81,6 +85,14 @@ class Cpu(pyglet.window.Window):
     vx = 0         # vx and vy are used for passing register numbers
     vy = 0         # in cycle
 
+    pixel = pyglet.resource.image('pixel.png')
+    buzz = pyglet.resource.media('buzz.wav', streaming=False)
+
+    batch = pyglet.graphics.Batch()
+    sprites = []
+    for i in range(0,2048):
+        sprites.append(pyglet.sprite.Sprite(pixel,batch=batch))
+
     fonts = [0xF0, 0x90, 0x90, 0x90, 0xF0, # 0
              0x20, 0x60, 0x20, 0x20, 0x70, # 1
              0xF0, 0x10, 0xF0, 0x80, 0xF0, # 2
@@ -124,6 +136,15 @@ class Cpu(pyglet.window.Window):
             self.memory[i] = self.fonts[i]
             i += 1
 
+    def main(self, prog):
+        self.initialize()
+        self.load_rom(prog)
+        while(True):
+            self.dispatch_events()
+            self.cycle()
+            self.draw()
+            time.sleep(.5)
+
     def load_rom(self, rom_path):
         log("Loading %s..." % rom_path)
         binary = open(rom_path, "rb").read()
@@ -133,7 +154,7 @@ class Cpu(pyglet.window.Window):
             i += 1
 
     def cycle(self):
-        self.opcode = (self.memory[self.pc] << 8)
+        self.opcode = (self.memory[self.pc] << 8) | self.memory[self.pc + 1]
         print("Current opcode: %X" % self.opcode)
 
         # TODO: process the opcode
@@ -145,8 +166,9 @@ class Cpu(pyglet.window.Window):
         extracted_op = self.opcode & 0xf000
         try:
             self.funcmap[extracted_op]()
-        except:
+        except Exception as e:
             print("Unknown instruction: %X" % self.opcode)
+            print(e)
 
         # decrement timers
         if self.delay_timer > 0:
@@ -165,9 +187,14 @@ class Cpu(pyglet.window.Window):
             i = 0
             while i < 2048:
                 if self.display_buffer[i] == 1:
-                    # draw a square pixel
-                    self.pixel.blit((i%64)*10, 310 - ((i/64)*10))
+                    self.sprites[i].x = (i%64)*10
+                    self.sprites[i].y = 310 - ((i//64)*10)
+                    self.sprites[i].batch = self.batch
+                else:
+                    self.sprites[i].batch = None
                 i += 1
+            self.clear()
+            self.batch.draw()
             self.flip()
             self.should_draw = False
 
@@ -197,6 +224,7 @@ class Cpu(pyglet.window.Window):
         try:
             self.funcmap[extracted_op]()
         except:
+            print(1)
             print("Unknown instruction: %X" % self.opcode)
 
     def _8ZZZ(self):
@@ -205,6 +233,7 @@ class Cpu(pyglet.window.Window):
         try:
             self.funcmap[extracted_op]()
         except:
+            print(2)
             print("Unknown instruction: %X" % self.opcode)
 
     # Operations
@@ -259,13 +288,14 @@ class Cpu(pyglet.window.Window):
         # 6xkk - LD Vx, byte
         # Set Vx = kk
         log("Sets VX to KK")
-        self.gpio[self.vx] = (opcode & 0x00ff)
+        self.gpio[self.vx] = (self.opcode & 0x00ff)
+
 
     def _7ZZZ(self):
         # 7xkk - ADD Vx, byte
         # Set Vx = Vx + kk
         log("Sets VX to VX + KK")
-        self.gpio[self.vx] += (opcode & 0x00ff)
+        self.gpio[self.vx] += (self.opcode & 0x00ff)
 
     def _8ZZ0(self):
         # 8xy0 - LD Vx, Vy
@@ -401,7 +431,7 @@ class Cpu(pyglet.window.Window):
                 else:
                     self.gpio[0xf] = 0
             row += 1
-        self.should_draw = true
+        self.should_draw = True
 
     def _EZ9E(self):
         # Ex9E - SKNP Vx
@@ -480,6 +510,8 @@ class Cpu(pyglet.window.Window):
             self.gpio[i] = self.memory[index + i]
 
 cpu = Cpu()
-cpu.load_rom("Games/PONG")
-while True:
-    cpu.cycle()
+cpu.main("Games/PONG2")
+# cpu.initialize()
+# cpu.load_rom("Games/PONG")
+# while(True):
+#     cpu.cycle()
