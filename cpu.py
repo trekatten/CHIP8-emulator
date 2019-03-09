@@ -240,79 +240,97 @@ class Cpu(pyglet.window.Window):
     def _0ZZ0(self):
         # 00E0 - CLS
         # Clear the display
-        log("Clears the screen")
+        log("Clears the screen\n")
         self.display_buffer = [0]*64*32
         self.should_draw = True
 
     def _0ZZE(self):
         # 00EE - RET
         # Returns from a subroutine
-        log("Returns from subroutine")
+        log("Returns from subroutine. Old PC: %X" % self.pc)
         self.pc = self.stack.pop()
+        log("Return complete. PC is now: %X\n" % self.pc)
 
     def _1ZZZ(self):
         # 1nnn - JP addr
         # Jump to location nnn.
-        log("Jumps to address NNN.")
+        log("Jumping to address %X from %X" % ((self.opcode % 0x0fff), self.pc))
         self.pc = self.opcode & 0x0fff
+        log("Jump complete. PC is now: %X\n" % self.pc)
 
     def _2ZZZ(self):
         # 2nnn - CALL addr
         # Call subroutine at nnn.
-        log("Jumps to subroutine at address NNN")
+        log("Jumps to subroutine at address %X from %X", ((self.opcode & 0x0fff), self.pc))
         self.stack.append(self.pc)
         self.pc = self.opcode & 0x0fff
+        log("Jump complete, PC is now: %X" % self.pc)
 
     def _3ZZZ(self):
         # 3xkk - SE Vx, byte
         # Skips next instruction if Vx = kk
+        log("Skips next instruction if %X equals %X" % (self.gpio[self.vx], (self.opcode & 0x00ff)))
         if (self.gpio[self.vx]) == (self.opcode & 0x00ff):
             self.pc += 2
+            log("Instruction skipped \n")
+        else:
+            log("Instruction not skipped\n")
 
     def _4ZZZ(self):
         # 4xkk SNE Vx,  byte
         # The interpreter compares register Vx to kk, and if they are not equal,
         # increments the program counter by 2.
-        log("Skips the next instruction if VX doesn't equal NN.")
+        log("Skips the next instruction if %X doesn't equal NN." % (self.gpio[self.vx], (self.opcode & 0x00ff)))
         if self.gpio[self.vx] != (self.opcode & 0x00ff):
             self.pc += 2
+            log("Instruction skipped \n")
+        else:
+            log("Instruction not skipped\n")
 
     def _5ZZZ(self):
         # 5xy0 - SE Vx, Vy
         # Skips next instruction if Vx = Vy
-        log("Skips the next instruction if VX equals VY")
+        log("Skips the next instruction if %X equals %X" % (self.gpio[self.vx], self.gpio[self.vx]))
         if self.gpio[self.vx] == self.gpio[self.vy]:
             self.pc += 2
+            log("Instruction skipped \n")
+        else:
+            log("Instruction not skipped\n")
 
     def _6ZZZ(self):
         # 6xkk - LD Vx, byte
         # Set Vx = kk
-        log("Sets VX to KK")
+        log("Sets VX(%X) to %X" % (self.gpio[self.vx], (self.opcode % 0x00ff)))
         self.gpio[self.vx] = (self.opcode & 0x00ff)
+        log("V%X is now %X\n" % (self.vx, self.gpio[self.vx]))
 
 
     def _7ZZZ(self):
         # 7xkk - ADD Vx, byte
         # Set Vx = Vx + kk
-        log("Sets VX to VX + KK")
+        log("Sets V%X(%X) to VX + KK(%X)" % (self.vx, self.gpio[self.vx], (self.opcode % 0x00ff)))
         self.gpio[self.vx] += (self.opcode & 0x00ff)
+        log("V%X is now %X\n" % (self.vx, self.gpio[self.vx]))
+
 
     def _8ZZ0(self):
         # 8xy0 - LD Vx, Vy
         # Set Vx = Vy
-        log("Sets VX to VY")
+        log("Sets V%X to V%X" % (self.vx, self.vx))
         self.gpio[self.vx] = self.gpio[self.vy]
+        log("V%X is now %X\n" % (self.vx, self.gpio[self.vx]))
 
     def _8ZZ1(self):
         # 8xy1 - OR Vx, Vy
         # Set Vx = Vx OR Vy
-        log("Sets Vx to Vx OR Vy")
+        log("Sets V%X to V%X AND V%X" % (self.vx, self.vx, self.vy))
         self.gpio[self.vx] |= self.gpio[self.vy]
+        log("V%X is now %X\n" % (self.vx, self.gpio[self.vx]))
 
     def _8ZZ2(self):
         # 8xy2 - AND Vx, Vy
         # Set Vx = Vx AND Vy
-        log("Sets Vx to Vx AND Vy")
+        log("Sets V%X to Vx AND Vy")
         self.gpio[self.vx] &= self.gpio[self.vy]
 
     def _8ZZ3(self):
@@ -321,7 +339,7 @@ class Cpu(pyglet.window.Window):
         log("Sets Vx to Vx XOR Vy")
         self.gpio[self.vx] ^= self.gpio[self.vy]
 
-    def _8ZZ4(self):        #TODO: handle 8ZZZ calls
+    def _8ZZ4(self):
         # 8xy4 - ADD Vx, Vy
         # Set Vx = Vx + Vy, set VF=carry
         log("Adds VY to VX. VF is set to 1 when there's a carry, \
