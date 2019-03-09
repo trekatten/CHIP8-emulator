@@ -110,3 +110,61 @@ class Cpu(pyglet.window.Window):
             self.gpio[0xf] = 0
         self.gpio[self.vx] += self.gpio[self.vy]
         self.gpio[self.vx] &= 0xff
+
+    def _FZ29(self):
+        log("Set index to point to a character")
+        self.index = (5*(self.gpio[self.vx])) & 0xfff
+
+    def _DZZZ(self):
+        log("Draw a sprite")
+        self.gpio[0xf] = 0
+        x = self.gpio[self.vx] & 0xff
+        y = self.gpio[self.vy] & 0xff
+        height = self.opcode & 0x000f
+        row = 0
+        while row < height:
+            curr_row = self.memory[row + self.index]
+            pixel_offset = 0
+            while pixel_offset < 8:
+                loc = x + pixel_offset + ((y + row) * 64)
+                pixel_offset += 1
+                if (y + row) >= 32 or (x + pixel_offset - 1) >= 64:
+                    #ignore pixels outside the screen
+                    continue
+                mask = 1 << 8-pixel_offset
+                curr_pixel = (curr_row & mask) >> (8-pixel_offset)
+                self.display_buffer[loc] ^= curr_pixel
+                if self.display_buffer[loc] == 0:
+                    self.gpio[0xf] = 1
+                else:
+                    self.gpio[0xf] = 0
+            row += 1
+        self.should_draw = true
+
+    def draw(self):
+        if self.should_draw:
+            # draw
+            self.clear()
+            line_counter = 0
+            i = 0
+            while i < 2048:
+                if self.display_buffer[i] == 1:
+                    # draw a square pixel
+                    self.pixel.blit((i%64)*10, 310 - ((i/64)*10))
+                i += 1
+            self.flip()
+            self.should_draw = False
+
+    def on_key_press(self, symbol, modifiers):
+        log("Key pressed: %r" % symbol)
+        if symbol in KEY_MAP.keys():
+            self.key_inputs[KEY_MAP[symbol]] = 1
+            if self.key_wait:
+                self.key_wait = False
+        else:
+            super(cpu, self).on_key_press(symbol, modifiers)
+
+    def on_key_release(self, symbol, modifiers):
+        log("Key released: %r" % symbol)
+        if symbol in KEY_MAP.keys():
+            self.key_inputs[KEY_MAP[symbol]] = 0
