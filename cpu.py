@@ -1,9 +1,28 @@
 import pyglet
+import random
 
 LOGGING = True
 def log(msg):
     if LOGGING:
         print(msg)
+
+KEY_MAP = {pyglet.window.key._1: 0x1,
+           pyglet.window.key._2: 0x2,
+           pyglet.window.key._3: 0x3,
+           pyglet.window.key._4: 0xc,
+           pyglet.window.key.Q: 0x4,
+           pyglet.window.key.W: 0x5,
+           pyglet.window.key.E: 0x6,
+           pyglet.window.key.R: 0xd,
+           pyglet.window.key.A: 0x7,
+           pyglet.window.key.S: 0x8,
+           pyglet.window.key.D: 0x9,
+           pyglet.window.key.F: 0xe,
+           pyglet.window.key.Z: 0xa,
+           pyglet.window.key.X: 0,
+           pyglet.window.key.C: 0xb,
+           pyglet.window.key.V: 0xf
+          }
 
 class Cpu(pyglet.window.Window):
     def __init__(self):
@@ -26,7 +45,24 @@ class Cpu(pyglet.window.Window):
                         0x8ff5: self._8ZZ5,
                         0x8ff6: self._8ZZ6,
                         0x8ff7: self._8ZZ7,
-                        0x8ffe: self._8ZZE
+                        0x8ffe: self._8ZZE,
+                        0xA000: self._AZZZ,
+                        0xB000: self._BZZZ,
+                        0xC000: self._CZZZ,
+                        0xD000: self._DZZZ,
+                        0xE000: self._0ZZZ,
+                        0xE09E: self._EZ9E,
+                        0xE0A1: self._EZA1,
+                        0xF000: self._DZZZ,
+                        0xF007: self._FZ07,
+                        0xF00A: self._FZ0A,
+                        0xF015: self._FZ15,
+                        0xF018: self._FZ18,
+                        0xF01E: self._FZ1E,
+                        0xF029: self._FZ29,
+                        0xF033: self._FZ33,
+                        0xF055: self._FZ55,
+                        0xF065: self._FZ65
                         }
     memory = [0]*4096  # max 4096
     gpio = [0]*16      # max 16
@@ -39,10 +75,29 @@ class Cpu(pyglet.window.Window):
     delay_timer = 0
     sound_timer = 0
     should_draw = False
+    key_wait = False
 
     pc = 0x200     # First 0x200 (512) bytes are reserved
     vx = 0         # vx and vy are used for passing register numbers
     vy = 0         # in cycle
+
+    fonts = [0xF0, 0x90, 0x90, 0x90, 0xF0, # 0
+             0x20, 0x60, 0x20, 0x20, 0x70, # 1
+             0xF0, 0x10, 0xF0, 0x80, 0xF0, # 2
+             0xF0, 0x10, 0xF0, 0x10, 0xF0, # 3
+             0x90, 0x90, 0xF0, 0x10, 0x10, # 4
+             0xF0, 0x80, 0xF0, 0x10, 0xF0, # 5
+             0xF0, 0x80, 0xF0, 0x90, 0xF0, # 6
+             0xF0, 0x10, 0x20, 0x40, 0x40, # 7
+             0xF0, 0x90, 0xF0, 0x90, 0xF0, # 8
+             0xF0, 0x90, 0xF0, 0x10, 0xF0, # 9
+             0xF0, 0x90, 0xF0, 0x90, 0x90, # A
+             0xE0, 0x90, 0xE0, 0x90, 0xE0, # B
+             0xF0, 0x80, 0x80, 0x80, 0xF0, # C
+             0xE0, 0x90, 0x90, 0x90, 0xE0, # D
+             0xF0, 0x80, 0xF0, 0x80, 0xF0, # E
+             0xF0, 0x80, 0xF0, 0x80, 0x80  # F
+             ]
 
     def initialize(self):
         self.clear()
@@ -57,6 +112,7 @@ class Cpu(pyglet.window.Window):
         self.delay_timer = 0
         self.sound_timer = 0
         self.should_draw = False
+        self.key_wait = False
 
         self.pc = 0x200     # First 0x200 (512) bytes are reserved
         self.vx = 0         # vx and vy are used for passing register numbers
@@ -68,20 +124,17 @@ class Cpu(pyglet.window.Window):
             self.memory[i] = self.fonts[i]
             i += 1
 
-
-
-
     def load_rom(self, rom_path):
         log("Loading %s..." % rom_path)
         binary = open(rom_path, "rb").read()
         i = 0
         while i < len(binary):
-            # print(binary[i])
             self.memory[i+0x200] = binary[i]
             i += 1
 
     def cycle(self):
-        self.opcode = self.memory[self.pc]
+        self.opcode = (self.memory[self.pc] << 8)
+        print("Current opcode: %X" % self.opcode)
 
         # TODO: process the opcode
         # Fetch the vx and vy specified in the opcode
@@ -118,6 +171,12 @@ class Cpu(pyglet.window.Window):
             self.flip()
             self.should_draw = False
 
+    def get_key(self):
+        for i in range(16):
+            if self.key_inputs[i] == 1:
+                return i
+        return -1
+
     def on_key_press(self, symbol, modifiers):
         log("Key pressed: %r" % symbol)
         if symbol in KEY_MAP.keys():
@@ -149,7 +208,6 @@ class Cpu(pyglet.window.Window):
             print("Unknown instruction: %X" % self.opcode)
 
     # Operations
-
     def _0ZZ0(self):
         # 00E0 - CLS
         # Clear the display
@@ -264,7 +322,7 @@ class Cpu(pyglet.window.Window):
             self.gpio[0xf] = 1
         else:
             self.gpio[0xf] = 0
-        self.gpio[self.vx] /= 2
+        self.gpio[self.vx] //= 2
         self.gpio[self.vx] &= 0xff
 
     def _8ZZ7(self):
@@ -290,12 +348,36 @@ class Cpu(pyglet.window.Window):
         self.gpio[self.vx] *= 2
         self.gpio[self.vx] &= 0xff
 
+    def _9ZZ0(self):
+        # 9xy0 - SNE Vx, Vy
+        # Skips next instruction if Vx != Vy
+        log("Skips next instruction if Vx != Vy")
+        if self.gpio[self.vx] != self.gpio[self.vy]:
+            self.pc += 2
 
-    def _FZ29(self):
-        log("Set index to point to a character")
-        self.index = (5*(self.gpio[self.vx])) & 0xfff
+    def _AZZZ(self):
+        # Annn - LD I, addr
+        # Set index = nnn
+        log("Set index to nnn")
+        self.index = (self.opcode & 0x0fff)
+
+    def _BZZZ(self):
+        # Bnnn - JP V0, addr
+        # Jump to location nnn + V0
+        log("Set PC to V0 + nnn")
+        self.pc = self.gpio[0] + (self.opcode & 0x0fff)
+
+    def _CZZZ(self):
+        # Cxkk - RND Vx, byte
+        # Set Vx = random byte AND kk
+        log("Set Vx to a random byte AND kk")
+        rand = random.randint(0, 255)
+        self.gpio[self.vx] = rand & (self.opcode & 0x00ff)
 
     def _DZZZ(self):
+        # Dxyn - DRW Vx, Vy, nibble
+        # Display n-byte sprite starting at memory location I at (Vx, Vy),
+        # set VF = collision.
         log("Draw a sprite")
         self.gpio[0xf] = 0
         x = self.gpio[self.vx] & 0xff
@@ -321,6 +403,83 @@ class Cpu(pyglet.window.Window):
             row += 1
         self.should_draw = true
 
+    def _EZ9E(self):
+        # Ex9E - SKNP Vx
+        # Skip next instruction if key with the value of Vx is pressed
+        log("Skip next instruction if key with the value of Vx is pressed")
+        if self.key_inputs[self.gpio[vx]] == 1:
+            self.pc += 2
+
+    def _EZA1(self):
+        # ExA1 - SKNP Vx
+        # Skip next instruction if key with the value of Vx is not pressed
+        log("Skip next instruction if key with the value of Vx is not pressed")
+        if self.key_inputs[self.gpio[vx]] == 0:
+            self.pc += 2
+
+    def _FZ07(self):
+        # Fx07 - LD Vx, DT
+        # Set Vx = delay timer value
+        log("Put the value of delay timer into Vx")
+        self.gpio[self.vx] = delay_timer
+
+    def _FZ0A(self):
+        # Fx0A - LD Vx, K
+        # Wait for a key press, store the value of the key in Vx
+        log("Waits for a key press and stores the result in Vx")
+        ret = self.get_key()
+        if ret >= 0:
+            self.gpio[self.vx] = ret
+        else:
+            self.pc -= 2    # Repeat the instruction until we get a key press
+
+    def _FZ15(self):
+        # Fx15 - LD DT, Vx
+        # Set delay timer = Vx
+        log("Set delay timer to Vx")
+        self.delay_timer = self.gpio[self.vx]
+
+    def _FZ18(self):
+        # Fx18 - LD ST, Vx
+        # Set sound timer = Vx
+        log("Set sound timer to Vx")
+        self.sound_timer = self.gpio[self.vx]
+
+    def _FZ1E(self):
+        # Fx1E - ADD I, Vx
+        # Set I = I + Vx
+        log("Add the value in Vx to I")
+        self.index += self.gpio[self.vx]
+
+    def _FZ29(self):
+        # Fx29 - LF F, Vx
+        # Set I = location of sprite for digit Vx
+        log("Set index to point to a character")
+        self.index = (5*(self.gpio[self.vx])) & 0xfff
+
+    def _FZ33(self):
+        # Fx33 - LD B, Vx
+        # Store BCD representation of Vx in memory locations I, I+1, and I+2.
+        log("Stores BCD of Vx in I, I+1 and I+2")
+        self.memory[index] = self.gpio[self.vx] // 100
+        self.memory[index + 1] = (self.gpio[self.vx] % 100) // 10
+        self.memory[index + 2] = self.gpio[self.vx] % 10
+
+    def _FZ55(self):
+        # Fx55 - LD [I], Vx
+        # Store registers V0 through Vx in memory starting at location I
+        log("Store register V0 through Vx starting at location I")
+        for i in range(self.vx):
+            self.memory[index + i] = self.gpio[i]
+
+    def _FZ65(self):
+        # Fx65 - LD Vx, [I]
+        # Read registers V0 through Vx from memory starting at location I
+        log("Read values into V0 through Vx from memory starting at I")
+        for i in range(self.vx):
+            self.gpio[i] = self.memory[index + i]
+
 cpu = Cpu()
-cpu.load_rom("Games/TETRIS")
-cpu.cycle()
+cpu.load_rom("Games/PONG")
+while True:
+    cpu.cycle()
