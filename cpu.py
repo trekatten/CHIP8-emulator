@@ -330,48 +330,57 @@ class Cpu(pyglet.window.Window):
     def _8ZZ2(self):
         # 8xy2 - AND Vx, Vy
         # Set Vx = Vx AND Vy
-        log("Sets V%X to Vx AND Vy")
+        log("Sets V%X to V%X(%X) AND V%X(%X)" % (self.vx, self.vx,
+        self.gpio[self.vx], self.vy, self.gpio[self.vy]))
         self.gpio[self.vx] &= self.gpio[self.vy]
+        log("V%X is now %X\n" % (self.vx, self.gpio[self.vx]))
 
     def _8ZZ3(self):
         # 8xy3 - XOR Vx, Vy
         # Set Vx = Vx XOR Vy
-        log("Sets Vx to Vx XOR Vy")
+        log("Sets V%X to V%X(%X) XOR V%X(%X)" % (self.vx, self.vx,
+        self.gpio[self.vx], self.vy, self.gpio[self.vy]))
         self.gpio[self.vx] ^= self.gpio[self.vy]
+        log("V%X is now %X\n" % (self.vx, self.gpio[self.vx]))
 
     def _8ZZ4(self):
         # 8xy4 - ADD Vx, Vy
         # Set Vx = Vx + Vy, set VF=carry
-        log("Adds VY to VX. VF is set to 1 when there's a carry, \
-        \and to 0 when there isn't.")
+        log("Adds V%X(%X) to V%X(%X). VF is set to 1 when there's a carry, \
+        \and to 0 when there isn't." % (self.vy, self.gpio[self.vy], self.vx,
+        self.gpio[self.vx]))
         if self.gpio[self.vx] + self.gpio[self.vy] > 0x44:
             self.gpio[0xf] = 1
         else:
             self.gpio[0xf] = 0
         self.gpio[self.vx] += self.gpio[self.vy]
         self.gpio[self.vx] &= 0xff
+        log("V%X is now %X\n" % (self.vx, self.gpio[self.vx]))
 
     def _8ZZ5(self):
         # 8xy5 - SUB Vx, Vy
         # Set Vx = Vx - Vy set VF = NOT borrow
-        log("Sets Vx to Vx - Vy. Sets VF to 1 if there is no borrow")
+        log("Sets V%X to V%X(%X) - V%X(%X). Sets VF to 1 if there is no borrow" % (self.vx, self.vx,
+        self.gpio[self.vx], self.vy, self.gpio[self.vy]))
         if self.gpio[self.vx] > self.gpio[self.vy]:
             self.gpio[0xf] = 1
         else:
             self.gpio[0xf] = 0
         self.gpio[self.vx] -= self.gpio[self.vy]
         self.gpio[self.vx] &= 0xff
+        log("V%X is now %X\n" % (self.vx, self.gpio[self.vx]))
 
     def _8ZZ6(self):
         # 8xy6 - SHR Vx {, Vy}
         # Set Vx = Vx SHR 1
-        log("Shifts Vx right once, potential carry stored in VF")
+        log("Shifts V%X(%X) right once, potential carry stored in VF" % (self.vx, self.gpio[self.vx]))
         if (self.gpio[self.vx] & 0x01) == 1:
             self.gpio[0xf] = 1
         else:
             self.gpio[0xf] = 0
         self.gpio[self.vx] //= 2
         self.gpio[self.vx] &= 0xff
+        log("V%X is now %X" % (self.vx, self.gpio[self.vx]))
 
     def _8ZZ7(self):
         # 8xy7 - SUBN Vx, Vy
